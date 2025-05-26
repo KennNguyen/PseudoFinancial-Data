@@ -6,5 +6,10 @@ set(EIGEN3_INCLUDE_DIR "/usr/include/eigen3")
 
 include_directories(${EIGEN3_INCLUDE_DIR})
 
+# Factor Model Executable
 add_executable(factor_model app/models/factor_model.cpp)
+target_compile_definitions(factor_model PRIVATE STANDALONE_BUILD)
+
+# Heston Model Executable
 add_executable(heston_model app/models/heston_model.cpp)
+target_compile_definitions(heston_model PRIVATE STANDALONE_BUILD)
