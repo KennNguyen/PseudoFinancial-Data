@@ -1,0 +1,54 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      S3_BUCKET: ${{ secrets.S3_BUCKET }}
+      DISTRIBUTION_ID: ${{ secrets.DISTRIBUTION_ID }}
+
+    steps:
+    - name: ⬇️ Checkout repository
+      uses: actions/checkout@v3
+
+    - name: ⚙️ Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: ⚙️ Install Linux build dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y cmake g++ libeigen3-dev
+
+    - name: ⚙️ Install Python dependencies
+      run: pip install --no-cache-dir -r requirements.txt
+
+    - name: 🧱 Build C++ binaries
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        make
+        cp factor_model heston_model ../app/web/static/
+
+    - name: 🪣 Sync static site to S3
+      run: |
+        aws s3 sync app/web/static/ s3://$S3_BUCKET --delete
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    - name: 🚀 Invalidate CloudFront cache
+      run: |
+        aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

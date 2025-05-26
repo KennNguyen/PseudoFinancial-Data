@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Documentation</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+      body { font-family: sans-serif; margin: 0; padding: 0; background: #f9f9f9; }
+      header { background-color: #0d1117; color: white; padding: 16px; display: flex; justify-content: space-between; align-items: center; }
+      header h1 { margin: 0; font-size: 1.25rem; }
+      nav a { color: #58a6ff; text-decoration: none; margin-left: 20px; }
+      nav a:hover { text-decoration: underline; }
+      .content { padding: 40px; max-width: 800px; margin: auto; }
+      h2, h3 { color: #1f1f1f; }
+      .math-block { text-align: center; margin: 30px 0; font-size: 1.2rem; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Financial Model Simulator</h1>
+      <nav>
+        <a href="/index.html">Home</a>
+        <a href="/changelog.html">Changelog</a>
+        <a href="/documentation.html">Documentation</a>
+      </nav>
+    </header>
+    <div class="content">
+      <h2>Documentation</h2>
+      <h3>Overview</h3>
+      <p>
+        This simulator generates synthetic financial time series using two stochastic frameworks: 
+        a <strong>Single-Factor Gaussian Return Model</strong> and the <strong>Heston Stochastic Volatility Model</strong>.
+        It is designed as a graduate-level educational tool to explore stochastic differential equations (SDEs), 
+        discretization techniques, and their application to asset dynamics under uncertainty.
+      </p>
+      <p>
+        These models were selected as foundational starting points due to their interpretability and broad use in both academia and practice.
+        During implementation, key limitations emerged regarding volatility clustering, tail behavior, and correlation structure-
+        prompting motivation for future enhancements.
+      </p>
+      <h3>Modeling Design</h3>
+      <h4>Single-Factor Gaussian Return Model</h4>
+      <p>
+        This model assumes that all assets are influenced by a shared latent market factor \( F_t \), with idiosyncratic shocks for each asset.
+        The return of asset \( i \) at time \( t \) is modeled as:
+      </p>
+      <div class="math-block">\[
+        R_{i,t} = \beta_i \cdot \Delta F_t + \epsilon_{i,t}
+        \]
+      </div>
+      <ul>
+        <li>\( R_{i,t} \): return of asset \( i \) at time \( t \)</li>
+        <li>\( \beta_i \): sensitivity (loading) of asset \( i \) to the factor</li>
+        <li>\( \Delta F_t \): market factor shock at time \( t \), sampled from \( \mathcal{N}(0, \sigma^2) \)</li>
+        <li>\( \epsilon_{i,t} \): idiosyncratic Gaussian noise for asset \( i \), \( \epsilon_{i,t} \sim \mathcal{N}(0, 1) \)</li>
+      </ul>
+      <p>
+        The factor path \( F_t \) is constructed cumulatively:
+      </p>
+      <div class="math-block">\[
+        F_t = \sum_{s=1}^t \Delta F_s
+        \]
+      </div>
+      <ul>
+        <li>\( F_t \): cumulative factor level at time \( t \)</li>
+        <li>\( \Delta F_s \): i.i.d. normal shocks representing small market fluctuations</li>
+      </ul>
+      <h4>Heston Model with Factor-Driven Drift</h4>
+      <p>
+        The Heston model introduces a stochastic variance process to simulate volatility clustering and mean reversion.
+        The asset price \( S_t \) evolves as:
+      </p>
+      <div class="math-block">\[
+        dS_t = S_t \left( \mu_t \, dt + \sqrt{v_t} \, dW_t^S \right)
+        \]
+      </div>
+      <ul>
+        <li>\( S_t \): asset price at time \( t \)</li>
+        <li>\( \mu_t \): drift term determined by factor returns (i.e., \( \mu_t = \beta^\top \Delta F_t \))</li>
+        <li>\( v_t \): instantaneous variance at time \( t \)</li>
+        <li>\( dW_t^S \): standard Brownian motion for price noise</li>
+      </ul>
+      <p>
+        The variance process \( v_t \) follows a mean-reverting square-root process:
+      </p>
+      <div class="math-block">\[
+        dv_t = \kappa(\theta - v_t) \, dt + \sigma_v \sqrt{v_t} \, dW_t^v
+        \]
+      </div>
+      <ul>
+        <li>\( v_t \): instantaneous variance</li>
+        <li>\( \kappa \): speed of mean reversion</li>
+        <li>\( \theta \): long-run average variance</li>
+        <li>\( \sigma_v \): volatility of the variance ("vol of vol")</li>
+        <li>\( dW_t^v \): Brownian motion driving variance shocks</li>
+      </ul>
+      <p>
+        The correlation between the price and variance Brownian motions is:
+      </p>
+      <div class="math-block">\[
+        \mathrm{Corr}(dW_t^S, dW_t^v) = \rho
+        \]
+      </div>
+      <ul>
+        <li>\( \rho \): correlation coefficient between price and variance processes; controls leverage effect</li>
+      </ul>
+      <p>
+        The simulator discretizes these equations using Euler-Maruyama steps and clamps variances to small positive values to preserve numerical stability.
+      </p>
+      <h3>Why Start Here?</h3>
+      <p>
+        These models provide a solid base to explore high-dimensional simulation techniques and allow for future extension to more 
+        realistic volatility regimes and market dynamics. Although simplified, they highlight core challenges in simulation accuracy, 
+        parameter calibration, and systemic correlation propagation.
+      </p>
+      <h3>Technology Stack</h3>
+      <ul>
+        <li><strong>C++</strong> - Performance-critical numerical routines for factor and volatility simulation.</li>
+        <li><strong>FastAPI</strong> - Lightweight Python backend serving model outputs via JSON APIs.</li>
+        <li><strong>Docker</strong> - Isolated and reproducible runtime environment for deployment.</li>
+        <li><strong>Chart.js</strong> - Dynamic frontend visualization of price and volatility trajectories.</li>
+        <li><strong>MathJax</strong> - In-browser LaTeX rendering for precise mathematical documentation.</li>
+      </ul>
+      <h3>Future Work & Research Extensions</h3>
+      <ul>
+        <li>
+          <strong>Multi-Factor Systems:</strong> Generalize the simulation from a single latent factor to a multi-dimensional stochastic setting. 
+          Each asset will have a factor loading vector \( \beta_i \in \mathbb{R}^k \), and factors will be sampled from a correlated normal distribution via Cholesky decomposition. 
+          This supports realistic sectoral dynamics and systemic shock propagation.
+        </li>
+        <li>
+          <strong>Rough Volatility Dynamics:</strong> Implement fractional Brownian motion or Markovian approximations of rough processes to simulate persistent volatility behavior.
+          Inspired by the <em>Rough Heston</em> model <a href="https://arxiv.org/abs/2008.01241" target="_blank">[Bayer et al., 2020]</a>, 
+          this can capture the empirical scaling of implied volatility surfaces observed at high-frequency.
+        </li>
+        <li>
+          <strong>Jump Diffusions & Microstructure Effects:</strong> Augment price paths with jump components modeled by compound Poisson processes and integrate bid-ask spread mechanics via the 
+          <em>Almgren-Chriss</em> execution model. This allows exploration of market impact and discrete execution risks under volatility and liquidity constraints.
+        </li>
+        <li>
+          <strong>Neural SDE Surrogates:</strong> Replace hand-crafted drift and diffusion terms with neural networks trained using adjoint sensitivity methods (via <code>torchsde</code>).
+          This enables adaptive simulation calibrated to empirical trajectories and can replicate non-linear regime shifts 
+          <a href="https://arxiv.org/abs/2005.08926" target="_blank">[Kidger et al., 2020]</a>.
+        </li>
+        <li>
+          <strong>Latent State Estimation:</strong> Introduce recursive filtering techniques (e.g., Kalman and particle filters) to infer hidden stochastic volatility states or unobserved macro factors.
+          This reflects the reality of modeling under partial information and is foundational for many risk management systems.
+        </li>
+        <li>
+          <strong>Online Learning:</strong> Equip the simulator with online convex optimization (OCO) and Bayesian drift updates to reflect regime-switching behavior and adaptive strategies.
+          This is particularly useful for simulating reactive agents or hedge strategies during structural market changes.
+        </li>
+        <li>
+          <strong>Model Risk & Distributional Robustness:</strong> Test the model under adversarial or worst-case perturbations using entropy-regularized or Wasserstein-based divergence measures.
+          Techniques from robust optimization literature (e.g., <a href="https://arxiv.org/abs/1604.01446" target="_blank">[Blanchet et al., 2017]</a>) can help quantify hedging sensitivity and uncertainty-aware pricing.
+        </li>
+      </ul>
+      <h3>References</h3>
+      <ul>
+        <li><strong>[Bayer et al., 2020]</strong> - <a href="https://arxiv.org/abs/2008.01241" target="_blank">Pricing under rough volatility</a>. arXiv:2008.01241.</li>
+        <li><strong>[Kidger et al., 2020]</strong> - <a href="https://arxiv.org/abs/2005.08926" target="_blank">Neural Controlled Differential Equations for Irregular Time Series</a>. arXiv:2005.08926.</li>
+        <li><strong>[Blanchet et al., 2017]</strong> - <a href="https://arxiv.org/abs/1604.01446" target="_blank">Quantifying Distributional Model Risk via Optimal Transport</a>. arXiv:1604.01446.</li>
+      </ul>
+    </div>
+  </body>
+</html>

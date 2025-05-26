@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+aiofiles
+httpx
+pandas
+numpy
+plotly

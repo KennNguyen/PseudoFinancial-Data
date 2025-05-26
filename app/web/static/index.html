@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Financial Model Simulator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f9f9f9;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background-color: #0d1117;
+      color: white;
+      padding: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+
+    nav a {
+      color: #58a6ff;
+      text-decoration: none;
+      margin-left: 20px;
+    }
+
+    nav a:hover {
+      text-decoration: underline;
+    }
+
+    .content {
+      flex: 1;
+      display: flex;
+      padding: 20px;
+      gap: 20px;
+    }
+
+    .form-container {
+      width: 40%;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+
+    .form-row {
+      display: flex;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    .form-row label {
+      width: 60%;
+      font-weight: 500;
+    }
+
+    .form-row input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+
+    form button[type="submit"],
+    .graph-buttons button {
+      padding: 10px 20px;
+      margin-top: 20px;
+      font-size: 1rem;
+      background-color: #1f6feb;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      transition: background-color 0.3s ease;
+    }
+
+    form button[type="submit"]:hover,
+    .graph-buttons button:hover {
+      background-color: #1158c7;
+    }
+
+    .graph-container {
+      width: 60%;
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    canvas {
+      max-width: 100%;
+      max-height: 400px;
+    }
+
+    .graph-title {
+      font-size: 1.2rem;
+      margin-bottom: 10px;
+    }
+
+    .graph-buttons {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Financial Model Simulator</h1>
+    <nav>
+      <a href="/index.html">Home</a>
+      <a href="/changelog.html">Changelog</a>
+      <a href="/documentation.html">Documentation</a>
+    </nav>
+  </header>
+
+  <div class="content">
+    <div class="form-container">
+      <form id="modelForm">
+        <h2>Factor Model Inputs</h2>
+        <div class="form-row"><label for="num_assets">Number of Assets:</label><input type="number" id="num_assets" value="1" min="1"/></div>        
+        <div class="form-row"><label for="duration">Simulation Duration:</label><input type="number" id="duration" value="252" /></div>
+        <div class="form-row"><label for="volatility">Factor Volatility:</label><input type="number" step="0.01" id="volatility" value="0.2" /></div>
+        <div class="form-row"><label for="seed">Random Seed:</label><input type="number" id="seed" value="123" /></div>
+
+        <h2>Heston Model Inputs</h2>
+        <div class="form-row"><label for="initial_price">Initial Price:</label><input type="number" step="0.01" id="initial_price" value="100" /></div>
+        <div class="form-row"><label for="initial_variance">Initial Variance:</label><input type="number" step="0.01" id="initial_variance" value="0.04" /></div>
+        <div class="form-row"><label for="kappa">Mean Reversion Speed (kappa):</label><input type="number" step="0.01" id="kappa" value="3.0" /></div>
+        <div class="form-row"><label for="theta">Long-Term Variance (theta):</label><input type="number" step="0.01" id="theta" value="0.04" /></div>
+        <div class="form-row"><label for="sigma_v">Volatility of Variance (sigma_v):</label><input type="number" step="0.01" id="sigma_v" value="0.3" /></div>
+        <div class="form-row"><label for="rho">Correlation (rho):</label><input type="number" step="0.01" id="rho" value="-0.7" /></div>
+        <div class="form-row"><label for="dt">Time Step Size (dt):</label><input type="number" step="0.01" id="dt" value="0.00396825" /></div>
+        <div class="form-row"><label for="idiosyncratic">Idiosyncratic Volatility:</label><input type="number" step="0.005" id="idiosyncratic" value="0.1" /></div>
+        <div class="form-row"><label for="factor_exposures">Factor Exposures (comma-separated):</label><input type="text" id="factor_exposures" value="0.05" /></div>
+
+        <button type="submit">Run Simulation</button>
+      </form>
+    </div>
+
+    <div class="graph-container">
+      <div class="graph-title" id="chartTitle">No data yet. Run the simulation.</div>
+      <canvas id="chartCanvas"></canvas>
+      <div class="graph-buttons">
+        <button type="button" onclick="prevChart()">← Prev</button>
+        <button type="button" onclick="nextChart()">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const chartTitles = [
+      "Cumulative Factor Level",
+      "Asset Price Path",
+      "Asset Variance Path"
+    ];
+
+    let currentChartIndex = 0;
+    let chartInstance = null;
+    let factorLevels = [], hestonPrices = [], hestonVariances = [];
+
+    function updateChart() {
+      const ctx = document.getElementById('chartCanvas').getContext('2d');
+      if (!factorLevels.length || !hestonPrices.length || !hestonVariances.length) {
+        document.getElementById('chartTitle').textContent = "No data yet. Run the simulation.";
+        if (chartInstance) chartInstance.destroy();
+        return;
+      }
+      const labels = Array.from({ length: factorLevels.length }, (_, i) => i);
+      const data = currentChartIndex === 0 ? factorLevels : currentChartIndex === 1 ? hestonPrices : hestonVariances;
+      if (chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{ label: chartTitles[currentChartIndex], data, borderColor: '#1f6feb', tension: 0.3 }]
+        },
+        options: {
+          animation: { duration: 1000, easing: 'easeOutQuart' },
+          scales: { x: { display: true }, y: { display: true } }
+        }
+      });
+      document.getElementById('chartTitle').textContent = chartTitles[currentChartIndex];
+    }
+
+    function prevChart() {
+      currentChartIndex = (currentChartIndex - 1 + chartTitles.length) % chartTitles.length;
+      updateChart();
+    }
+
+    function nextChart() {
+      currentChartIndex = (currentChartIndex + 1) % chartTitles.length;
+      updateChart();
+    }
+
+    document.getElementById('modelForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const params = {
+        duration: parseInt(document.getElementById('duration').value),
+        volatility: parseFloat(document.getElementById('volatility').value),
+        seed: parseInt(document.getElementById('seed').value),
+        num_assets: parseInt(document.getElementById('num_assets').value),
+        initial_price: parseFloat(document.getElementById('initial_price').value),
+        initial_variance: parseFloat(document.getElementById('initial_variance').value),
+        kappa: parseFloat(document.getElementById('kappa').value),
+        theta: parseFloat(document.getElementById('theta').value),
+        sigma_v: parseFloat(document.getElementById('sigma_v').value),
+        rho: parseFloat(document.getElementById('rho').value),
+        dt: parseFloat(document.getElementById('dt').value),
+        idiosyncratic: parseFloat(document.getElementById('idiosyncratic').value),
+        factor_exposures: document.getElementById('factor_exposures').value
+      };
+      fetch(`/simulate?${new URLSearchParams(params)}`)
+        .then(response => response.json())
+        .then(data => {
+          factorLevels = data.factor_levels;
+          hestonPrices = data.heston_prices;
+          hestonVariances = data.heston_variances;
+          currentChartIndex = 0;
+          updateChart();
+        })
+        .catch(error => console.error('Error fetching simulation data:', error));
+    });
+  </script>
+</body>
+</html>
