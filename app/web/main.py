@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import subprocess
 import pandas as pd
 import numpy as np
@@ -9,16 +10,27 @@ import sys
 
 app = FastAPI()
 
+# ---------------------------- CORS MIDDLEWARE -------------------------------
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Consider changing to ['https://your-cloudfront-domain'] in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ---------------------------- STATIC FILES -------------------------------
+
 # Serve static files (for index.html and others)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Redirect root "/" to the index.html page
 @app.get("/")
 async def root():
-    from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/static/index.html")
 
-# ---------------------------- PATH FIX -------------------------------
+# ---------------------------- PATHS ---------------------------------------
 
 # Detect if running on Windows or Linux
 is_windows = sys.platform.startswith('win')
@@ -90,9 +102,10 @@ async def simulate(
     # ----------------- CLEAN UP CSV FILES -----------------
 
     for file in ["factor_output.csv", "heston_output.csv"]:
-        try: os.remove(file)
-        except FileNotFoundError: pass
-
+        try:
+            os.remove(file)
+        except FileNotFoundError:
+            pass
 
     # ----------------- RETURN RESULTS -----------------
 
