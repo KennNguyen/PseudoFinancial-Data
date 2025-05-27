@@ -17,6 +17,9 @@ CMakeCache.txt
 cmake_install.cmake
 Makefile
 
+# JS Configurations
+config.js
+
 # Compiled binaries
 app/web/static/factor_model
 app/web/static/factor_model.exe

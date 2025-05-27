@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Financial Model Simulator</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="app\web\static\config\config.js"></script>
   <style>
     body {
       font-family: sans-serif;
@@ -230,7 +231,7 @@
         idiosyncratic: parseFloat(document.getElementById('idiosyncratic').value),
         factor_exposures: document.getElementById('factor_exposures').value
       };
-      fetch(`/simulate?${new URLSearchParams(params)}`)
+      fetch(`${BACKEND_API_URL}/simulate?${new URLSearchParams(params)}`)
         .then(response => response.json())
         .then(data => {
           factorLevels = data.factor_levels;
