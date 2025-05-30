@@ -1,113 +1,118 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+
 import subprocess
 import pandas as pd
 import numpy as np
 import os
 import sys
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+# ------------------ Initialize FastAPI with SlowAPI Limiter ------------------
+limiter = Limiter(key_func=get_remote_address, default_limits=["20/minute"])
+
 app = FastAPI()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# ---------------------------- CORS MIDDLEWARE -------------------------------
-
+# ------------------ CORS ------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Consider changing to ['https://your-cloudfront-domain'] in production
+    allow_origins=["https://kennnguyendev.com", "https://www.kennnguyendev.com"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET"],
+    allow_headers=["Content-Type"],
 )
 
-# ---------------------------- STATIC FILES -------------------------------
+# ------------------ Static ------------------
+app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 
-# Serve static files (for index.html and others)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# Redirect root "/" to the index.html page
 @app.get("/")
 async def root():
     return RedirectResponse(url="/static/index.html")
 
-# ---------------------------- PATHS ---------------------------------------
+# ------------------ Binary Paths ------------------
+is_windows = sys.platform.startswith("win")
+current_dir = os.path.abspath(os.path.dirname(__file__))
 
-# Detect if running on Windows or Linux
-is_windows = sys.platform.startswith('win')
-
-# Get the absolute path where main.py is located (should be /usr/src/app/app/web)
-current_dir = os.path.dirname(__file__)
-
-# Build absolute paths to the binaries so subprocess always finds them
 factor_binary = os.path.join(current_dir, "factor_model.exe" if is_windows else "factor_model")
 heston_binary = os.path.join(current_dir, "heston_model.exe" if is_windows else "heston_model")
 
-# ---------------------------- SIMULATION ENDPOINT --------------------
-
+# ------------------ Simulate Endpoint ------------------
 @app.get("/simulate")
+@limiter.limit("10/minute")
 async def simulate(
-    duration: int = Query(100),
-    volatility: float = Query(0.2),
+    request: Request,
+    duration: int = Query(100, ge=1, le=10000),
+    volatility: float = Query(0.2, ge=0.0, le=5.0),
     seed: int = Query(42),
-    num_assets: int = Query(1),
-    initial_price: float = Query(100),
-    initial_variance: float = Query(0.04),
-    kappa: float = Query(2.0),
-    theta: float = Query(0.04),
-    sigma_v: float = Query(0.3),
-    rho: float = Query(-0.7),
-    dt: float = Query(0.01),
-    idiosyncratic: float = Query(0.1),
+    num_assets: int = Query(1, ge=1, le=50),
+    initial_price: float = Query(100.0, gt=0),
+    initial_variance: float = Query(0.04, ge=0),
+    kappa: float = Query(2.0, ge=0),
+    theta: float = Query(0.04, ge=0),
+    sigma_v: float = Query(0.3, ge=0),
+    rho: float = Query(-0.7, ge=-1.0, le=1.0),
+    dt: float = Query(0.01, gt=0),
+    idiosyncratic: float = Query(0.1, ge=0),
     factor_exposures: str = Query("1")
 ):
+    if not os.path.isfile(factor_binary):
+        raise HTTPException(status_code=500, detail="Factor model binary not found.")
+    if not os.path.isfile(heston_binary):
+        raise HTTPException(status_code=500, detail="Heston model binary not found.")
 
-    # ----------------- RUN FACTOR MODEL -----------------
+    try:
+        subprocess.run(
+            [factor_binary, str(duration), str(volatility), str(num_assets), str(seed)],
+            check=True, capture_output=True, text=True
+        )
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(status_code=500, detail=f"Factor model error: {e.stderr}")
 
-    subprocess.run([
-        factor_binary,
-        str(duration),
-        str(volatility),
-        str(num_assets),
-        str(seed)
-    ], check=True)
+    if not os.path.exists("factor_output.csv"):
+        raise HTTPException(status_code=500, detail="Missing factor_output.csv")
 
     factor_df = pd.read_csv("factor_output.csv")
     factor_levels = factor_df.iloc[:, -1].tolist()
 
-    # ----------------- PREPARE EXPOSURES -----------------
+    try:
+        exposures = [float(x.strip()) for x in factor_exposures.split(',')]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid format for factor_exposures.")
 
-    exposures = [float(x) for x in factor_exposures.split(',')]
     exposure_args = [str(e) for e in exposures]
 
-    # ----------------- RUN HESTON MODEL -----------------
+    try:
+        subprocess.run(
+            [
+                heston_binary,
+                str(initial_price), str(initial_variance),
+                str(kappa), str(theta), str(sigma_v), str(rho), str(dt),
+                str(idiosyncratic), str(duration), *exposure_args
+            ],
+            check=True, capture_output=True, text=True
+        )
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(status_code=500, detail=f"Heston model error: {e.stderr}")
 
-    subprocess.run([
-        heston_binary,
-        str(initial_price),
-        str(initial_variance),
-        str(kappa),
-        str(theta),
-        str(sigma_v),
-        str(rho),
-        str(dt),
-        str(idiosyncratic),
-        str(duration),
-        *exposure_args
-    ], check=True)
+    if not os.path.exists("heston_output.csv"):
+        raise HTTPException(status_code=500, detail="Missing heston_output.csv")
 
     heston_df = pd.read_csv("heston_output.csv")
     heston_prices = heston_df["price"].tolist()
     heston_variances = heston_df["variance"].tolist()
 
-    # ----------------- CLEAN UP CSV FILES -----------------
-
-    for file in ["factor_output.csv", "heston_output.csv"]:
+    for f in ["factor_output.csv", "heston_output.csv"]:
         try:
-            os.remove(file)
-        except FileNotFoundError:
+            os.remove(f)
+        except Exception:
             pass
-
-    # ----------------- RETURN RESULTS -----------------
 
     return JSONResponse(content={
         "factor_levels": factor_levels,
