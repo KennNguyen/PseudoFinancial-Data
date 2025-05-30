@@ -32,7 +32,35 @@ Built with performance in mind, the system integrates high-speed C++ simulations
 
 ---
 
-## 🚀 Stage Two: Data Distribution + Real-Time Processing (Ongoing)
+## 🔐 Stage Two: AWS Hosting & Security Hardening (Completed)
+
+- **HTTPS & TLS**:
+  - Configured using Certbot with Let's Encrypt for FastAPI Backend.
+  - Forced HTTPS via NGINX configuration.
+  - HSTS, X-Frame-Options, XSS protection headers included.
+
+- **AWS S3 + CloudFront**:
+  - Static frontend hosted on private S3 bucket.
+  - CloudFront integrated using Origin Access Control (OAC).
+  - Configured custom domain `www.kennnguyendev.com` using Route 53.
+  - CloudFront invalidations used for frontend deployment.
+
+- **Security Features**:
+  - Rate limiting added via `slowapi` in FastAPI (`10/minute` on `/simulate` endpoint).
+  - CORS restricted to HTTPS.
+  - UFW firewall enabled with limited ports.
+  - SSH hardened (disabled password login, non-root user with `sudo`).
+  - IAM GitHub user restricted to only S3 write and CloudFront invalidation permissions.
+  - Secrets injected through environment variables.
+  - Certbot timers confirmed for auto-renewal.
+
+- **Monitoring & Audit**:
+  - Enabled access logs on CloudFront.
+  - Planned future setup of Route 53 health checks and CloudWatch alarms.
+
+---
+
+## 🚀 Stage Three: Data Distribution + Real-Time Processing (Ongoing)
 
 - **Kafka**:  
   Acts as the primary event stream pipeline, distributing tick-level data across consumers.
@@ -42,7 +70,7 @@ Built with performance in mind, the system integrates high-speed C++ simulations
 
 ---
 
-## 🧠 Stage Three: Historical Storage (Ongoing)
+## 🧠 Stage Four: Historical Storage (Ongoing)
 
 - **PostgreSQL** (with **TimescaleDB**):  
   Stores long-term historical market simulations. Schema supports efficient querying via hypertables and time-based partitioning. Indexing strategies are under evaluation for large-scale multi-asset data retention.
